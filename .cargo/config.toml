@@ -1,5 +1,6 @@
 [env]
 ENV = "dev"
+JWT_SECRET = "secret"
 DEV_HOST = "127.0.0.1"
 PROD_HOST = "0.0.0.0"
 DEV_PORT = "3000"
