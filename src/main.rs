@@ -23,6 +23,11 @@ async fn main() {
 
     let pool = create_db_pool().await;
 
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to migrate database");
+
     let app = Router::new()
         .merge(tasks::routes::task_routes(pool.clone()))
         .merge(auth::routes::auth_routes(pool));

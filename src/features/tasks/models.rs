@@ -3,21 +3,26 @@ use axum::{
     http::{Response, StatusCode},
     response::IntoResponse,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::prelude::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
 pub struct Task {
-    pub id: usize,
-    pub title: String,
-    pub completed: TaskStatus,
+    pub id: i32,
+    pub task_name: String,
+    pub task_status: TaskStatus,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateTaskDto {
-    pub title: String,
+    pub task_name: String,
+    pub task_status: TaskStatus,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type)]
+#[sqlx(type_name = "task_status", rename_all = "lowercase")]
 pub enum TaskStatus {
     Open,
     InProgress,
