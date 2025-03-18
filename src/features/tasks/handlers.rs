@@ -50,10 +50,7 @@ pub async fn create_task(
     .bind(created_at)
     .fetch_one(&pool)
     .await
-    .map_err(|err| {
-        println!("err {}", err);
-        TaskError::InternalServerError
-    })?;
+    .map_err(|_| TaskError::InternalServerError)?;
 
     Ok(Json(task))
 }
