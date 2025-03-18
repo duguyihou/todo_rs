@@ -4,3 +4,4 @@ src/.DS_Store
 .cargo/
 /.cargo
 .cargo/config.toml
+src/.DS_Store
