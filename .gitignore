@@ -1,3 +1,6 @@
 /target
 .DS_Store
 src/.DS_Store
+.cargo/
+/.cargo
+.cargo/config.toml
