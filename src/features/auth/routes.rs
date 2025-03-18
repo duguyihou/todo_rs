@@ -1,11 +1,10 @@
 use super::handlers;
-use axum::{
-    routing::{get, post},
-    Router,
-};
+use axum::{routing::post, Router};
+use sqlx::PgPool;
 
-pub fn auth_routes() -> Router {
+pub fn auth_routes(pool: PgPool) -> Router {
     Router::new()
-        .route("/login", get(handlers::login))
-        .route("/register", get(handlers::register))
+        .route("/login", post(handlers::login))
+        .route("/register", post(handlers::register))
+        .with_state(pool)
 }
