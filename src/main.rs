@@ -2,6 +2,7 @@ mod config;
 mod features;
 mod utils;
 use axum::Router;
+use config::app_config::AppConfig;
 use features::{auth, tasks};
 use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -17,10 +18,8 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let env = env::var("ENV").unwrap_or("dev".to_string()).to_uppercase();
-    let host = env::var(format!("{}_HOST", env)).unwrap();
-    let port = env::var(format!("{}_PORT", env)).unwrap();
-    let addr = host + ":" + port.as_str();
+    let app_config = AppConfig::from_env().expect("Failed to load app config");
+    let addr = app_config.get_addr();
 
     let pool = create_db_pool().await;
 
