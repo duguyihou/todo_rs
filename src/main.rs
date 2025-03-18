@@ -1,11 +1,11 @@
 mod config;
 mod features;
+mod utils;
 use axum::Router;
-use config::supabase_config::SupabaseConfig;
 use features::{auth, tasks};
-use sqlx::PgPool;
 use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use utils::create_db_pool::create_db_pool;
 
 #[tokio::main]
 async fn main() {
@@ -22,11 +22,7 @@ async fn main() {
     let port = env::var(format!("{}_PORT", env)).unwrap();
     let addr = host + ":" + port.as_str();
 
-    let supabase_config = SupabaseConfig::from_env().expect("Failed to load Supabase config");
-
-    let pool = PgPool::connect(&supabase_config.pub_url)
-        .await
-        .expect("Failed to connect to database");
+    let pool = create_db_pool().await;
 
     let app = Router::new()
         .merge(tasks::routes::task_routes(pool.clone()))
