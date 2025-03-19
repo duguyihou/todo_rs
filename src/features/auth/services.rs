@@ -1,8 +1,10 @@
+use super::models::AuthCredentialsDto;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use sqlx::PgPool;
 use validator::{Validate, ValidationErrors};
-
-use super::models::AuthCredentialsDto;
-
 pub struct AuthService;
 
 impl AuthService {
@@ -17,14 +19,16 @@ impl AuthService {
     ) -> Result<(), sqlx::Error> {
         let created_at = chrono::Utc::now();
 
+        let password_hash = Self::hash_password(password).map_err(|e| sqlx::Error::Protocol(e))?;
+
         sqlx::query!(
             r#"
-            INSERT INTO users (email, password, created_at)
-            VALUES ($1, $2, $3)
-            RETURNING id, email, password, created_at
-            "#,
+                INSERT INTO users (email, password, created_at)
+                VALUES ($1, $2, $3)
+                RETURNING id, email, password, created_at
+                "#,
             email,
-            password,
+            password_hash,
             created_at
         )
         .fetch_one(pool)
@@ -60,5 +64,22 @@ impl AuthService {
         .await
         .map_err(|_| sqlx::Error::RowNotFound)?;
         Ok(result.is_some())
+    }
+
+    pub fn hash_password(password: &str) -> Result<String, String> {
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+
+        argon2
+            .hash_password(password.as_bytes(), &salt)
+            .map(|hash| hash.to_string())
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn verify_password(password: &str, hash: &str) -> Result<(), String> {
+        let parsed_hash = PasswordHash::new(hash).map_err(|e| e.to_string())?;
+        Argon2::default()
+            .verify_password(password.as_bytes(), &parsed_hash)
+            .map_err(|e| e.to_string())
     }
 }
