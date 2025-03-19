@@ -68,8 +68,22 @@ pub async fn create_task(
     Ok(Json(task))
 }
 
-pub async fn delete_task(Path(id): Path<String>) -> Html<Json<String>> {
-    Html(Json(format!("Delete task with id: {}", id)))
+pub async fn delete_task(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+) -> Result<Json<String>, TaskError> {
+    sqlx::query(
+        r#"
+        DELETE FROM tasks
+        WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .execute(&pool)
+    .await
+    .map_err(|_| TaskError::NotFound)?;
+
+    Ok(Json(format!("Task with id {} has been deleted", id)))
 }
 
 pub async fn update_task_status(
