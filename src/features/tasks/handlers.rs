@@ -7,21 +7,18 @@ use sqlx::PgPool;
 
 use super::models::{CreateTaskDto, Task, TaskError, TaskStatus};
 
-pub async fn get_all_tasks() -> Result<Json<Vec<Task>>, TaskError> {
-    Ok(Json(vec![
-        Task {
-            id: 1,
-            task_name: "Learn Axum".to_string(),
-            task_status: TaskStatus::InProgress,
-            created_at: chrono::Utc::now(),
-        },
-        Task {
-            id: 2,
-            task_name: "Write blog post".to_string(),
-            task_status: TaskStatus::Open,
-            created_at: chrono::Utc::now(),
-        },
-    ]))
+pub async fn get_all_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<Task>>, TaskError> {
+    let tasks = sqlx::query_as(
+        r#"
+        SELECT id, task_name, task_status, created_at
+        FROM tasks
+        ORDER BY created_at DESC
+        "#,
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|_| TaskError::InternalServerError)?;
+    Ok(Json(tasks))
 }
 
 pub async fn get_task_by_id(Path(id): Path<String>) -> Html<Json<String>> {
