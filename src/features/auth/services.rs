@@ -1,15 +1,40 @@
-use super::models::AuthCredentialsDto;
+use super::models::{AuthCredentialsDto, User};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+use axum::Json;
 use sqlx::PgPool;
 use validator::{Validate, ValidationErrors};
 pub struct AuthService;
 
 impl AuthService {
-    pub async fn login() -> Result<(), ()> {
-        Ok(())
+    pub async fn find_user(
+        pool: &PgPool,
+        email: &str,
+        password: &str,
+    ) -> Result<Json<User>, String> {
+        let user = Self::find_user_by_email(pool, email)
+            .await
+            .map_err(|e| e.to_string())?;
+        Self::verify_password(password, &user.password).map_err(|e| e.to_string())?;
+        Ok(user)
+    }
+
+    pub async fn find_user_by_email(pool: &PgPool, email: &str) -> Result<Json<User>, String> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            SELECT id, email, password, created_at
+            FROM users
+            WHERE email = $1
+            "#,
+            email
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        Ok(Json(user))
     }
 
     pub async fn create_user(
