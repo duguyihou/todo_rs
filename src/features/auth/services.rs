@@ -46,4 +46,19 @@ impl AuthService {
         }
         Ok(())
     }
+
+    pub async fn email_exists(pool: &PgPool, email: &str) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query!(
+            r#"
+            SELECT email
+            FROM users
+            WHERE email = $1
+            "#,
+            email
+        )
+        .fetch_optional(pool)
+        .await
+        .map_err(|_| sqlx::Error::RowNotFound)?;
+        Ok(result.is_some())
+    }
 }
