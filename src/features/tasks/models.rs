@@ -21,6 +21,11 @@ pub struct CreateTaskDto {
     pub task_status: TaskStatus,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateTaskStatusDto {
+    pub task_status: TaskStatus,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::Type)]
 #[sqlx(type_name = "task_status", rename_all = "lowercase")]
 pub enum TaskStatus {
