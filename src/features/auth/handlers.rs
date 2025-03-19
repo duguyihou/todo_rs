@@ -23,6 +23,13 @@ pub async fn register(
         return Err((StatusCode::BAD_REQUEST, message));
     }
 
+    if AuthService::email_exists(&pool, &email)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    {
+        return Err((StatusCode::CONFLICT, "Email already exists".to_string()));
+    }
+
     if let Err(err) = AuthService::create_user(&pool, &email, &password).await {
         return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
     }
