@@ -18,11 +18,27 @@ pub async fn get_all_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<Task>>
     .fetch_all(&pool)
     .await
     .map_err(|_| TaskError::InternalServerError)?;
+
     Ok(Json(tasks))
 }
 
-pub async fn get_task_by_id(Path(id): Path<String>) -> Html<Json<String>> {
-    Html(Json(format!("Get task with id: {}", id)))
+pub async fn get_task_by_id(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+) -> Result<Json<Task>, TaskError> {
+    let task = sqlx::query_as(
+        r#"
+        SELECT id, task_name, task_status, created_at
+        FROM tasks
+        WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| TaskError::NotFound)?;
+
+    Ok(Json(task))
 }
 
 pub async fn create_task(
