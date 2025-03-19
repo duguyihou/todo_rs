@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::prelude::FromRow;
+use validator::Validate;
 
 #[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
 pub struct User {
@@ -16,9 +17,11 @@ pub struct User {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Validate)]
 pub struct AuthCredentialsDto {
+    #[validate(email(message = "Invalid email"))]
     pub email: String,
+    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
     pub password: String,
 }
 
@@ -28,6 +31,7 @@ pub enum AuthError {
     MissingCredentials,
     TokenCreationError,
     InvalidToken,
+    WeakPassword,
 }
 
 impl IntoResponse for AuthError {
@@ -39,6 +43,7 @@ impl IntoResponse for AuthError {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Token creation error")
             }
             AuthError::InvalidToken => (StatusCode::BAD_REQUEST, "Invalid token"),
+            AuthError::WeakPassword => (StatusCode::BAD_REQUEST, "Weak password"),
         };
         let body = Json(json!({
             "error": error_message
