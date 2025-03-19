@@ -1,11 +1,10 @@
 use axum::{
     extract::{Path, State},
-    response::Html,
     Json,
 };
 use sqlx::PgPool;
 
-use super::models::{CreateTaskDto, Task, TaskError, TaskStatus, UpdateTaskStatusDto};
+use super::models::{CreateTaskDto, Task, TaskError, UpdateTaskStatusDto};
 
 pub async fn get_all_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<Task>>, TaskError> {
     let tasks = sqlx::query_as(
