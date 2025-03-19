@@ -5,7 +5,7 @@ use axum::{
 };
 use sqlx::PgPool;
 
-use super::models::{CreateTaskDto, Task, TaskError, TaskStatus};
+use super::models::{CreateTaskDto, Task, TaskError, TaskStatus, UpdateTaskStatusDto};
 
 pub async fn get_all_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<Task>>, TaskError> {
     let tasks = sqlx::query_as(
@@ -73,8 +73,24 @@ pub async fn delete_task(Path(id): Path<String>) -> Html<Json<String>> {
 }
 
 pub async fn update_task_status(
-    Path(id): Path<String>,
-    Json(status): Json<TaskStatus>,
-) -> Html<Json<String>> {
-    Html(Json(format!("Update task status with id: {}", id)))
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(update_task_status_dto): Json<UpdateTaskStatusDto>,
+) -> Result<Json<Task>, TaskError> {
+    let UpdateTaskStatusDto { task_status } = update_task_status_dto;
+    let task = sqlx::query_as(
+        r#"
+        UPDATE tasks
+        SET task_status = $1
+        WHERE id = $2
+        RETURNING id, task_name, task_status, created_at
+        "#,
+    )
+    .bind(task_status)
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|_| TaskError::InternalServerError)?;
+
+    Ok(Json(task))
 }
