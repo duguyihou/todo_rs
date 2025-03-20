@@ -106,20 +106,24 @@ pub async fn delete_task(
 
 pub async fn update_task_status(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<i32>,
     Json(update_task_status_dto): Json<UpdateTaskStatusDto>,
 ) -> Result<Json<Task>, TaskError> {
     let UpdateTaskStatusDto { task_status } = update_task_status_dto;
+    let user_id = claims.sub;
+
     let task = sqlx::query_as(
         r#"
         UPDATE tasks
         SET task_status = $1
-        WHERE id = $2
-        RETURNING id, task_name, task_status, created_at
+        WHERE id = $2 AND user_id = $3
+        RETURNING id, task_name, task_status, created_at, user_id
         "#,
     )
     .bind(task_status)
     .bind(id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|_| TaskError::InternalServerError)?;
