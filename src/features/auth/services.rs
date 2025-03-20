@@ -1,19 +1,15 @@
-use super::models::{AuthCredentialsDto, User};
+use super::models::{AuthCredentialsDto, AuthResponse, Claims, User, KEYS};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use axum::Json;
+use jsonwebtoken::{decode, encode, Header, Validation};
 use sqlx::PgPool;
 use validator::{Validate, ValidationErrors};
 pub struct AuthService;
 
 impl AuthService {
-    pub async fn find_user(
-        pool: &PgPool,
-        email: &str,
-        password: &str,
-    ) -> Result<Json<User>, String> {
+    pub async fn find_user(pool: &PgPool, email: &str, password: &str) -> Result<User, String> {
         let user = Self::find_user_by_email(pool, email)
             .await
             .map_err(|e| e.to_string())?;
@@ -21,7 +17,7 @@ impl AuthService {
         Ok(user)
     }
 
-    pub async fn find_user_by_email(pool: &PgPool, email: &str) -> Result<Json<User>, String> {
+    pub async fn find_user_by_email(pool: &PgPool, email: &str) -> Result<User, String> {
         let user = sqlx::query_as!(
             User,
             r#"
@@ -34,7 +30,7 @@ impl AuthService {
         .fetch_one(pool)
         .await
         .map_err(|e| e.to_string())?;
-        Ok(Json(user))
+        Ok(user)
     }
 
     pub async fn create_user(
@@ -105,6 +101,24 @@ impl AuthService {
         let parsed_hash = PasswordHash::new(hash).map_err(|e| e.to_string())?;
         Argon2::default()
             .verify_password(password.as_bytes(), &parsed_hash)
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn create_auth_response(user: &User) -> Result<AuthResponse, String> {
+        let exp = (chrono::Utc::now() + chrono::Duration::days(14)).timestamp() as usize;
+        let claims = Claims {
+            sub: user.id,
+            company: user.email.clone(),
+            exp,
+        };
+        let header = Header::default();
+        let token = encode(&header, &claims, &KEYS.encoding).map_err(|e| e.to_string())?;
+        Ok(AuthResponse::new(token))
+    }
+
+    pub fn validate_token(token: &str) -> Result<Claims, String> {
+        decode::<Claims>(&token, &KEYS.decoding, &Validation::default())
+            .map(|data| data.claims)
             .map_err(|e| e.to_string())
     }
 }
