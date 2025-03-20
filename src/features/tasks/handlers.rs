@@ -8,14 +8,21 @@ use crate::features::auth::models::Claims;
 
 use super::models::{CreateTaskDto, Task, TaskError, UpdateTaskStatusDto};
 
-pub async fn get_all_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<Task>>, TaskError> {
+pub async fn get_all_tasks(
+    State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<Task>>, TaskError> {
+    let user_id = claims.sub;
+
     let tasks = sqlx::query_as(
         r#"
-        SELECT id, task_name, task_status, created_at
+        SELECT id, task_name, task_status, created_at, user_id
         FROM tasks
+        WHERE user_id = $1
         ORDER BY created_at DESC
         "#,
     )
+    .bind(user_id)
     .fetch_all(&pool)
     .await
     .map_err(|_| TaskError::InternalServerError)?;
