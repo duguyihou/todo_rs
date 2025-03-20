@@ -32,16 +32,20 @@ pub async fn get_all_tasks(
 
 pub async fn get_task_by_id(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<i32>,
 ) -> Result<Json<Task>, TaskError> {
+    let user_id = claims.sub;
+
     let task = sqlx::query_as(
         r#"
-        SELECT id, task_name, task_status, created_at
+        SELECT id, task_name, task_status, created_at, user_id
         FROM tasks
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $2
         "#,
     )
     .bind(id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|_| TaskError::NotFound)?;
