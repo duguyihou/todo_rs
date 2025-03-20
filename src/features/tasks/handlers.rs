@@ -85,15 +85,18 @@ pub async fn create_task(
 
 pub async fn delete_task(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<i32>,
 ) -> Result<Json<String>, TaskError> {
+    let user_id = claims.sub;
     sqlx::query(
         r#"
         DELETE FROM tasks
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $2
         "#,
     )
     .bind(id)
+    .bind(user_id)
     .execute(&pool)
     .await
     .map_err(|_| TaskError::NotFound)?;
