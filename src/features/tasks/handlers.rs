@@ -1,8 +1,10 @@
 use axum::{
     extract::{Path, State},
-    Json,
+    Extension, Json,
 };
 use sqlx::PgPool;
+
+use crate::features::auth::models::Claims;
 
 use super::models::{CreateTaskDto, Task, TaskError, UpdateTaskStatusDto};
 
@@ -42,6 +44,7 @@ pub async fn get_task_by_id(
 
 pub async fn create_task(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Json(create_task_dto): Json<CreateTaskDto>,
 ) -> Result<Json<Task>, TaskError> {
     let CreateTaskDto {
@@ -49,17 +52,19 @@ pub async fn create_task(
         task_status,
     } = create_task_dto;
     let created_at = chrono::Utc::now();
+    let user_id = claims.sub;
 
     let task = sqlx::query_as(
         r#"
-        INSERT INTO tasks (task_name, task_status, created_at)
-        VALUES ($1, $2, $3)
-        RETURNING id, task_name, task_status, created_at
+        INSERT INTO tasks (task_name, task_status, created_at, user_id)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, task_name, task_status, created_at, user_id
         "#,
     )
     .bind(task_name)
     .bind(task_status)
     .bind(created_at)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|_| TaskError::InternalServerError)?;

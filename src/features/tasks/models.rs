@@ -13,6 +13,7 @@ pub struct Task {
     pub task_name: String,
     pub task_status: TaskStatus,
     pub created_at: DateTime<Utc>,
+    pub user_id: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
