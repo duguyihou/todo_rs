@@ -1,19 +1,28 @@
 use axum::{
     extract::{Path, State},
-    Json,
+    Extension, Json,
 };
 use sqlx::PgPool;
 
+use crate::features::auth::models::Claims;
+
 use super::models::{CreateTaskDto, Task, TaskError, UpdateTaskStatusDto};
 
-pub async fn get_all_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<Task>>, TaskError> {
+pub async fn get_all_tasks(
+    State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<Task>>, TaskError> {
+    let user_id = claims.sub;
+
     let tasks = sqlx::query_as(
         r#"
-        SELECT id, task_name, task_status, created_at
+        SELECT id, task_name, task_status, created_at, user_id
         FROM tasks
+        WHERE user_id = $1
         ORDER BY created_at DESC
         "#,
     )
+    .bind(user_id)
     .fetch_all(&pool)
     .await
     .map_err(|_| TaskError::InternalServerError)?;
@@ -23,16 +32,20 @@ pub async fn get_all_tasks(State(pool): State<PgPool>) -> Result<Json<Vec<Task>>
 
 pub async fn get_task_by_id(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<i32>,
 ) -> Result<Json<Task>, TaskError> {
+    let user_id = claims.sub;
+
     let task = sqlx::query_as(
         r#"
-        SELECT id, task_name, task_status, created_at
+        SELECT id, task_name, task_status, created_at, user_id
         FROM tasks
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $2
         "#,
     )
     .bind(id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|_| TaskError::NotFound)?;
@@ -42,6 +55,7 @@ pub async fn get_task_by_id(
 
 pub async fn create_task(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Json(create_task_dto): Json<CreateTaskDto>,
 ) -> Result<Json<Task>, TaskError> {
     let CreateTaskDto {
@@ -49,17 +63,19 @@ pub async fn create_task(
         task_status,
     } = create_task_dto;
     let created_at = chrono::Utc::now();
+    let user_id = claims.sub;
 
     let task = sqlx::query_as(
         r#"
-        INSERT INTO tasks (task_name, task_status, created_at)
-        VALUES ($1, $2, $3)
-        RETURNING id, task_name, task_status, created_at
+        INSERT INTO tasks (task_name, task_status, created_at, user_id)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, task_name, task_status, created_at, user_id
         "#,
     )
     .bind(task_name)
     .bind(task_status)
     .bind(created_at)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|_| TaskError::InternalServerError)?;
@@ -69,15 +85,18 @@ pub async fn create_task(
 
 pub async fn delete_task(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<i32>,
 ) -> Result<Json<String>, TaskError> {
+    let user_id = claims.sub;
     sqlx::query(
         r#"
         DELETE FROM tasks
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $2
         "#,
     )
     .bind(id)
+    .bind(user_id)
     .execute(&pool)
     .await
     .map_err(|_| TaskError::NotFound)?;
@@ -87,20 +106,24 @@ pub async fn delete_task(
 
 pub async fn update_task_status(
     State(pool): State<PgPool>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<i32>,
     Json(update_task_status_dto): Json<UpdateTaskStatusDto>,
 ) -> Result<Json<Task>, TaskError> {
     let UpdateTaskStatusDto { task_status } = update_task_status_dto;
+    let user_id = claims.sub;
+
     let task = sqlx::query_as(
         r#"
         UPDATE tasks
         SET task_status = $1
-        WHERE id = $2
-        RETURNING id, task_name, task_status, created_at
+        WHERE id = $2 AND user_id = $3
+        RETURNING id, task_name, task_status, created_at, user_id
         "#,
     )
     .bind(task_status)
     .bind(id)
+    .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|_| TaskError::InternalServerError)?;
