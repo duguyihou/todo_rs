@@ -1,12 +1,12 @@
 mod config;
 mod features;
-mod utils;
+mod shared;
 use axum::Router;
 use config::app_config::AppConfig;
 use features::{auth, tasks, users};
+use shared::db;
 use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use utils::create_db_pool::create_db_pool;
 
 #[tokio::main]
 async fn main() {
@@ -21,7 +21,7 @@ async fn main() {
     let app_config = AppConfig::from_env().expect("Failed to load app config");
     let addr = app_config.get_addr();
 
-    let pool = create_db_pool().await;
+    let pool = db::create_db_pool().await;
 
     let app = Router::new()
         .merge(tasks::routes::task_routes(pool.clone()))
