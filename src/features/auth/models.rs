@@ -10,20 +10,10 @@ use axum_extra::{
     headers::{authorization::Bearer, Authorization},
     TypedHeader,
 };
-use chrono::{DateTime, Utc};
 use jsonwebtoken::{decode, DecodingKey, EncodingKey, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::prelude::FromRow;
 use validator::Validate;
-
-#[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
-pub struct User {
-    pub id: i32,
-    pub email: String,
-    pub password: String,
-    pub created_at: DateTime<Utc>,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Validate)]
 pub struct AuthCredentialsDto {
