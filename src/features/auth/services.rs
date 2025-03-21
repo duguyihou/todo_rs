@@ -1,4 +1,6 @@
-use super::models::{AuthCredentialsDto, AuthResponse, Claims, User, KEYS};
+use crate::features::users::models::User;
+
+use super::models::{AuthCredentialsDto, AuthResponse, Claims, KEYS};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
