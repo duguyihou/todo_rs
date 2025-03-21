@@ -49,3 +49,13 @@ pub async fn register(
 
     Ok(Json(format!("User registered successfully")))
 }
+
+pub async fn verify_email(
+    State(pool): State<PgPool>,
+    token: String,
+) -> Result<Json<String>, (StatusCode, String)> {
+    if let Err(err) = AuthService::verify(&pool, &token).await {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
+    }
+    Ok(Json("Email verified successfully".to_string()))
+}
