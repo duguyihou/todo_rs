@@ -6,6 +6,8 @@ use argon2::{
     Argon2,
 };
 use jsonwebtoken::{decode, encode, Header, Validation};
+use lettre::{transport::stub::StubTransport, Transport};
+use rand::{distr::Alphanumeric, Rng};
 use sqlx::PgPool;
 use validator::{Validate, ValidationErrors};
 pub struct AuthService;
@@ -16,6 +18,10 @@ impl AuthService {
             .await
             .map_err(|e| e.to_string())?;
         Self::verify_password(password, &user.password).map_err(|e| e.to_string())?;
+
+        if !user.verified {
+            return Err("Email not verified".to_string());
+        }
         Ok(user)
     }
 
@@ -23,10 +29,10 @@ impl AuthService {
         let user = sqlx::query_as!(
             User,
             r#"
-            SELECT id, email, password, created_at
-            FROM users
-            WHERE email = $1
-            "#,
+                SELECT id, email, password, created_at, verified as "verified!", verification_token
+                FROM users
+                WHERE email = $1
+                "#,
             email
         )
         .fetch_one(pool)
@@ -42,21 +48,29 @@ impl AuthService {
     ) -> Result<(), sqlx::Error> {
         let created_at = chrono::Utc::now();
 
-        let password_hash = Self::hash_password(password).map_err(|e| sqlx::Error::Protocol(e))?;
+        let password_hash =
+            Self::hash_password(password).map_err(|e| sqlx::Error::Protocol(e.into()))?;
+
+        let verification_token = Self::generate_verification_token();
 
         sqlx::query!(
             r#"
-                INSERT INTO users (email, password, created_at)
-                VALUES ($1, $2, $3)
-                RETURNING id, email, password, created_at
-                "#,
+                    INSERT INTO users (email, password, created_at, verification_token)
+                    VALUES ($1, $2, $3, $4)
+                    RETURNING id, email, password, created_at
+                    "#,
             email,
             password_hash,
-            created_at
+            created_at,
+            verification_token
         )
         .fetch_one(pool)
         .await
         .map_err(|_| sqlx::Error::RowNotFound)?;
+
+        Self::send_verification_email(email, &verification_token)
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.into()))?;
         Ok(())
     }
 
@@ -122,5 +136,72 @@ impl AuthService {
         decode::<Claims>(&token, &KEYS.decoding, &Validation::default())
             .map(|data| data.claims)
             .map_err(|e| e.to_string())
+    }
+
+    pub fn generate_verification_token() -> String {
+        rand::rng()
+            .sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect()
+    }
+
+    pub async fn send_verification_email(email: &str, token: &str) -> Result<(), String> {
+        let verification_link = format!("http://localhost:3000/verify?token={}", token);
+
+        let email = lettre::Message::builder()
+            .from("noreply@yourapp.com".parse().unwrap())
+            .to(email.parse().unwrap())
+            .subject("Verify your email")
+            .body(format!(
+                "Click on the link to verify your email: {}",
+                verification_link
+            ))
+            .unwrap();
+
+        // let creds = Credentials::new("smtp_username".to_string(), "smtp_password".to_string());
+
+        // let mailer = lettre::SmtpTransport::relay("smtp.yourapp.com")
+        //     .unwrap()
+        //     .credentials(creds)
+        //     .build();
+
+        // local mailer for testing
+        let mailer = StubTransport::new_ok();
+
+        mailer
+            .send(&email)
+            .map_err(|e| format!("Failed to send email: {}", e))?;
+
+        // local mailer for testing
+        let captured_email = mailer.messages();
+        tracing::info!("Email sent: {:?}", captured_email);
+        Ok(())
+    }
+
+    pub async fn verify(pool: &PgPool, token: &str) -> Result<(), String> {
+        let user = sqlx::query_as!(
+                User,
+                "SELECT id, email, password, created_at, verified as \"verified!\", verification_token FROM users WHERE verification_token = $1",
+                token
+            )
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| format!("Failed to query user: {}", e))?
+            .ok_or("Invalid or expired token".to_string())?;
+
+        sqlx::query!(
+            r#"
+                UPDATE users
+                SET verified = TRUE, verification_token = NULL
+                WHERE id = $1
+                "#,
+            user.id
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Failed to update user: {}", e))?;
+
+        Ok(())
     }
 }

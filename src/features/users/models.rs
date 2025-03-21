@@ -13,6 +13,8 @@ pub struct User {
     pub email: String,
     pub password: String,
     pub created_at: DateTime<Utc>,
+    pub verified: bool,
+    pub verification_token: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
