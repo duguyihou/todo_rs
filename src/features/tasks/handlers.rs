@@ -1,31 +1,79 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Extension, Json,
 };
 use sqlx::PgPool;
 
 use crate::features::auth::models::Claims;
 
-use super::models::{CreateTaskDto, Task, TaskError, UpdateTaskStatusDto};
+use super::models::{CreateTaskDto, Task, TaskError, TaskFilterDto, UpdateTaskStatusDto};
 
-pub async fn get_all_tasks(
+pub async fn get_tasks(
     State(pool): State<PgPool>,
     Extension(claims): Extension<Claims>,
+    Query(task_filter_dto): Query<TaskFilterDto>,
 ) -> Result<Json<Vec<Task>>, TaskError> {
     let user_id = claims.sub;
-
-    let tasks = sqlx::query_as(
-        r#"
-        SELECT id, task_name, task_status, created_at, user_id
-        FROM tasks
-        WHERE user_id = $1
-        ORDER BY created_at DESC
-        "#,
-    )
-    .bind(user_id)
-    .fetch_all(&pool)
-    .await
-    .map_err(|_| TaskError::InternalServerError)?;
+    let tasks = match (task_filter_dto.search, task_filter_dto.task_status) {
+        (Some(search), Some(task_status)) => {
+            let search = format!("%{}%", search);
+            sqlx::query_as(
+                r#"
+                    SELECT id, task_name, task_status, created_at, user_id
+                    FROM tasks
+                    WHERE user_id = $1 AND task_status = $2 AND task_name LIKE $3
+                    ORDER BY created_at DESC
+                    "#,
+            )
+            .bind(user_id)
+            .bind(task_status)
+            .bind(search)
+            .fetch_all(&pool)
+            .await
+            .map_err(|_| TaskError::InternalServerError)?
+        }
+        (Some(search), None) => {
+            let search = format!("%{}%", search);
+            sqlx::query_as(
+                r#"
+                        SELECT id, task_name, task_status, created_at, user_id
+                        FROM tasks
+                        WHERE user_id = $1 AND task_name ILIKE $2
+                        ORDER BY created_at DESC
+                        "#,
+            )
+            .bind(user_id)
+            .bind(search)
+            .fetch_all(&pool)
+            .await
+            .map_err(|_| TaskError::InternalServerError)?
+        }
+        (None, Some(task_status)) => sqlx::query_as(
+            r#"
+                SELECT id, task_name, task_status, created_at, user_id
+                FROM tasks
+                WHERE user_id = $1 AND task_status = $2
+                ORDER BY created_at DESC
+                "#,
+        )
+        .bind(user_id)
+        .bind(task_status)
+        .fetch_all(&pool)
+        .await
+        .map_err(|_| TaskError::InternalServerError)?,
+        (None, None) => sqlx::query_as(
+            r#"
+                SELECT id, task_name, task_status, created_at, user_id
+                FROM tasks
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                "#,
+        )
+        .bind(user_id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|_| TaskError::InternalServerError)?,
+    };
 
     Ok(Json(tasks))
 }

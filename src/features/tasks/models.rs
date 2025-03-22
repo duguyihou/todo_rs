@@ -23,6 +23,12 @@ pub struct CreateTaskDto {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct TaskFilterDto {
+    pub task_status: Option<TaskStatus>,
+    pub search: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateTaskStatusDto {
     pub task_status: TaskStatus,
 }

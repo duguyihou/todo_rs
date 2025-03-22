@@ -13,7 +13,7 @@ pub fn task_routes(pool: PgPool) -> Router {
     Router::new()
         .route(
             "/tasks",
-            get(handlers::get_all_tasks).post(handlers::create_task),
+            get(handlers::get_tasks).post(handlers::create_task),
         )
         .route(
             "/tasks/{id}",
